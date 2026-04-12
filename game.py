@@ -1,15 +1,46 @@
 
 # game.py
+import json
 import random
 import gamefunctions as gf
 
-# ----------------- STATE ----------------- #
-state = {
-    "player_name": input("Enter your name: "),
-    "player_hp": 30,
-    "player_gold": 200,
-    "player_inventory": [],
-}
+
+
+
+
+# ---------------- SAVE SYSTEM ---------------- #
+SAVE_FILE = "savegame.json"
+
+def save_game():
+    with open(SAVE_FILE, "w") as f:
+        json.dump(state, f)
+
+def load_game():
+    global state
+    try:
+        with open(SAVE_FILE, "r") as f:
+            state = json.load(f)
+        return True
+    except FileNotFoundError:
+        print("No save file found.")
+        return False
+
+# ---------------- START MENU ---------------- #
+print("[1] New Game")
+print("[2] Load Game")
+
+choice = input("> ")
+
+if choice == "2" and load_game():
+    pass
+else:
+    name = input("Enter your name: ")
+    state = {
+        "player_name": name,
+        "player_hp": 30,
+        "player_gold": 200,
+        "player_inventory": [],
+    }
 
 gf.print_welcome(state["player_name"], 40)
 
@@ -53,7 +84,8 @@ def get_town_action():
     print("[3] Shop")
     print("[4] Equip Weapon")
     print("[5] Inventory")
-    print("[6] Quit")
+    print("[6] Save and Quit")
+#-------------Changed Quit -> SAVE AND QUIT------------------------#
 
     choice = input("> ")
 
@@ -214,5 +246,7 @@ while True:
     elif choice == "5":
         show_inventory()
     elif choice == "6":
-        print("\nThanks for playing!")
+        save_game()
+        print("\nGame saved. Thanks for playing!")
         break
+    #--------CHANGED THANKS FOR PLAYING -> GAME SAVED-----------#
