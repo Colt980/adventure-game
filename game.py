@@ -3,6 +3,7 @@
 import json
 import random
 import gamefunctions as gf
+import map_interface as mi
 
 
 
@@ -84,16 +85,20 @@ def get_town_action():
     print("[3] Shop")
     print("[4] Equip Weapon")
     print("[5] Inventory")
-    print("[6] Save and Quit")
+    print("[6] Explore Codingsville") # added explore option
+    print("[7] Save and Quit")
 #-------------Changed Quit -> SAVE AND QUIT------------------------#
 
     choice = input("> ")
 
-    while choice not in ["1", "2", "3", "4", "5", "6"]:
+    while choice not in ["1", "2", "3", "4", "5", "6","7"]:
         print("Invalid choice.")
         choice = input("> ")
 
     return choice
+
+#-----------------------------Exploration------------------#
+
 
 # ----------------- SHOP ----------------- #
 def visit_shop():
@@ -218,6 +223,7 @@ def fight_monster():
         reward = monster['money']
         state["player_gold"] += reward
         print(f"\nYou defeated the {monster['name']} and earned {reward} gold!")
+   
 
 # ----------------- REST ----------------- #
 def sleep_in_town():
@@ -246,6 +252,23 @@ while True:
     elif choice == "5":
         show_inventory()
     elif choice == "6":
+        if "map_state" not in state:
+            state["map_state"] = mi.create_map_state()
+
+        result, state["map_state"] = mi.run_map_interface(state["map_state"])
+
+        if result == "monster_encounter":
+            fight_monster()
+
+        elif result == "returned_to_town":
+            print("You returned to town safely.")
+        
+        elif result == "quit":
+            print("Exited map.")
+
+
+
+    elif choice == "7":
         save_game()
         print("\nGame saved. Thanks for playing!")
         break
