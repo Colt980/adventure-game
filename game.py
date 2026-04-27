@@ -1,5 +1,6 @@
 
 # game.py
+from WanderingMonster import WanderingMonster
 import json
 import random
 import gamefunctions as gf
@@ -13,15 +14,26 @@ import map_interface as mi
 SAVE_FILE = "savegame.json"
 
 def save_game():
+    save_state = state.copy()
+
+    # convert monsters to dicts
+    save_state["monsters"] = [m.to_dict() for m in state["monsters"]]
+
     with open(SAVE_FILE, "w") as f:
-        json.dump(state, f)
+        json.dump(save_state, f)
 
 def load_game():
     global state
     try:
         with open(SAVE_FILE, "r") as f:
-            state = json.load(f)
+            loaded = json.load(f)
+
+        # rebuild monsters
+        loaded["monsters"] = [WanderingMonster.from_dict(m) for m in loaded["monsters"]]
+
+        state = loaded
         return True
+
     except FileNotFoundError:
         print("No save file found.")
         return False
@@ -36,12 +48,7 @@ if choice == "2" and load_game():
     pass
 else:
     name = input("Enter your name: ")
-    state = {
-        "player_name": name,
-        "player_hp": 30,
-        "player_gold": 200,
-        "player_inventory": [],
-    }
+    state = {"player_name": name, "player_hp": 30, "player_gold": 200, "player_inventory": [],"monsters": [WanderingMonster.random_spawn([], [], 10, 10)],"map_state": mi.create_map_state()}
 
 gf.print_welcome(state["player_name"], 40)
 
@@ -111,22 +118,13 @@ def visit_shop():
     choice = input("> ")
 
     if choice == "1" and state["player_gold"] >= 50:
-        item = {
-            "name": "sword",
-            "type": "weapon",
-            "maxDurability": 5,
-            "currentDurability": 5,
-            "equipped": False
-        }
+        item = {"name": "sword", "type": "weapon", "maxDurability": 5, "currentDurability": 5, "equipped": False}
         state["player_inventory"].append(item)
         state["player_gold"] -= 50
         print("Purchased sword.")
 
     elif choice == "2" and state["player_gold"] >= 30:
-        item = {
-            "name": "magic stone",
-            "type": "consumable"
-        }
+        item = {"name": "magic stone", "type": "consumable"}
         state["player_inventory"].append(item)
         state["player_gold"] -= 30
         print("Purchased magic stone.")
@@ -155,75 +153,7 @@ def equip_weapon():
     weapons[choice]["equipped"] = True
     print(f"Equipped {weapons[choice]['name']}")
 
-# ----------------- COMBAT ----------------- #
-def fight_monster():
-    monster = gf.new_random_monster()
-    monster_hp = monster['health']
 
-    print_header(f"FIGHT: {monster['name']}")
-    print(monster['description'])
-
-    while state["player_hp"] > 0 and monster_hp > 0:
-        print(f"\nHP: {state['player_hp']} | {monster['name']} HP: {monster_hp}")
-        print("[1] Attack")
-        print("[2] Run")
-        print("[3] Use Item")
-
-        action = input("> ")
-
-        if action == "1":
-            damage_to_monster = random.randint(5, 10)
-
-            # weapon bonus
-            for item in state["player_inventory"]:
-                if item.get("equipped"):
-                    damage_to_monster += 5
-                    item["currentDurability"] -= 1
-
-                    if item["currentDurability"] <= 0:
-                        print(f"Your {item['name']} broke!")
-                        state["player_inventory"].remove(item)
-                    break
-
-            damage_to_player = monster['power']
-
-            monster_hp -= damage_to_monster
-            state["player_hp"] -= damage_to_player
-
-            print(f"You dealt {damage_to_monster} damage.")
-            print(f"The {monster['name']} dealt {damage_to_player} damage!")
-
-        elif action == "2":
-            print("You ran away!")
-            break
-
-        elif action == "3":
-            if not state["player_inventory"]:
-                print("No items available.")
-                continue
-
-            for i, item in enumerate(state["player_inventory"]):
-                print(f"{i+1}) {item['name']}")
-
-            choice = int(input("> ")) - 1
-            item = state["player_inventory"][choice]
-
-            if item["name"] == "magic stone":
-                print("You used the magic stone! Monster defeated instantly!")
-                state["player_inventory"].pop(choice)
-                monster_hp = 0
-
-        else:
-            print("Invalid action.")
-
-    if state["player_hp"] <= 0:
-        print("\nYou passed out... Game Over!")
-
-    elif monster_hp <= 0:
-        reward = monster['money']
-        state["player_gold"] += reward
-        print(f"\nYou defeated the {monster['name']} and earned {reward} gold!")
-   
 
 # ----------------- REST ----------------- #
 def sleep_in_town():
@@ -240,9 +170,8 @@ while True:
     choice = get_town_action()
 
     if choice == "1":
-        fight_monster()
-        if state["player_hp"] <= 0:
-            break
+        print("Combat is now part of exploration. Choose option 6 to explore the map.")
+        
     elif choice == "2":
         sleep_in_town()
     elif choice == "3":
@@ -252,22 +181,58 @@ while True:
     elif choice == "5":
         show_inventory()
     elif choice == "6":
+
         if "map_state" not in state:
             state["map_state"] = mi.create_map_state()
 
         result, state["map_state"] = mi.run_map_interface(state["map_state"])
 
+        # ----------------------------
+        # HANDLE MAP RESULT
+        # ----------------------------
+
         if result == "monster_encounter":
-            fight_monster()
+
+            px, py = state["map_state"]["player_pos"]
+
+            for m in state["monsters"]:
+                if (m.x, m.y) == (px, py):
+
+                    print(f"You fight a {m.monster_type}!")
+
+                    state["player_hp"] -= 5
+                    m.hp -= 999
+
+                    if m.hp <= 0:
+                        state["monsters"].remove(m)
+                        print("Monster defeated!")
+
+                    break
 
         elif result == "returned_to_town":
             print("You returned to town safely.")
-        
+
         elif result == "quit":
             print("Exited map.")
 
+        # ----------------------------
+        # MONSTER MOVEMENT
+        # ----------------------------
 
+        occupied = [(m.x, m.y) for m in state["monsters"]]
+        player_pos = state["map_state"]["player_pos"]
+        town_pos = state["map_state"]["town_pos"]
 
+        for m in state["monsters"]:
+            m.move(occupied=occupied, forbidden=[tuple(player_pos), tuple(town_pos)],grid_w=10,grid_h=10)
+
+        # ----------------------------
+        # RESPAWN IF EMPTY
+        # ----------------------------
+
+        if len(state["monsters"]) == 0:
+            state["monsters"] = [WanderingMonster.random_spawn([], [], 10, 10), WanderingMonster.random_spawn([], [], 10, 10)]
+        
     elif choice == "7":
         save_game()
         print("\nGame saved. Thanks for playing!")
