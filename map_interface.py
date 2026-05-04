@@ -7,13 +7,7 @@ MAP_SIZE = 10
 
 # ---------------- MAP STATE ---------------- #
 def create_map_state():
-    return {
-        "player_pos": [5, 5],
-        "town_pos": [0, 0],
-        "monsters": [
-            WanderingMonster.random_spawn([], [], 10, 10)
-        ]
-    }
+    return {"mode": "explore","player_pos": [5, 5],"town_pos": [0, 0],"monsters": [WanderingMonster.random_spawn([], [], 10, 10)],"active_monster": None}
 
 
 # ---------------- PLAYER MOVEMENT ---------------- #
@@ -40,12 +34,48 @@ def move_player(game_state, direction):
         return "returned_to_town"
 
     # check monster encounter
+    # check monster collision (FORCED COMBAT)
     for m in game_state["monsters"]:
         if [x, y] == [m.x, m.y]:
-            return "monster_encounter"
+            game_state["active_monster"] = m
+            game_state["mode"] = "combat"
+            return "combat"
 
     return "moved"
 
+# Combat system
+def handle_combat_input(game_state, key):
+    monster = game_state["active_monster"]
+    player = game_state.get("player", {"hp": 20})
+
+    if key == pygame.K_1:
+        # attack
+        monster.hp -= 5
+
+        if monster.hp <= 0:
+            game_state["monsters"].remove(monster)
+            game_state["mode"] = "explore"
+            game_state["active_monster"] = None
+            return "victory"
+
+        # monster counterattack
+        player["hp"] -= monster.attack
+        game_state["player"] = player
+
+    elif key == pygame.K_2:
+        # run away
+        game_state["mode"] = "explore"
+        game_state["active_monster"] = None
+        return "escaped"
+
+    return "combat"
+
+occupied = [(m.x, m.y) for m in state["monsters"]]
+player_pos = state["map_state"]["player_pos"]
+town_pos = state["map_state"]["town_pos"]
+
+for m in state["monsters"]:
+    m.move(occupied=occupied, forbidden=[tuple(player_pos), tuple(town_pos)],grid_w=10,grid_h=10)
 
 # ---------------- MAP LOOP ---------------- #
 def run_map_interface(game_state):
@@ -67,6 +97,10 @@ def run_map_interface(game_state):
 
             if event.type == pygame.KEYDOWN:
 
+                if game_state["mode"] != "explore":
+                    continue  # ignore movement during combat
+
+                
                 if event.key == pygame.K_w:
                     result = move_player(game_state, "up")
 
@@ -78,6 +112,11 @@ def run_map_interface(game_state):
 
                 elif event.key == pygame.K_d:
                     result = move_player(game_state, "right")
+
+                if game_state["mode"] == "combat":
+
+                    if event.key in [pygame.K_1, pygame.K_2]:
+                        handle_combat_input(game_state, event.key)
 
                 # ---------------- MONSTER MOVEMENT (ONLY ON INPUT) ---------------- #
                 if result is not None:
@@ -94,10 +133,13 @@ def run_map_interface(game_state):
                         )
 
                     # exit conditions
-                    if result in ["returned_to_town", "monster_encounter"]:
+                    if result == "returned_to_town":
                         pygame.quit()
                         return result, game_state
 
+                    if result == "combat":
+                        return "combat", game_state
+                    
         # ---------------- DRAW ---------------- #
         screen.fill((0, 0, 0))
 

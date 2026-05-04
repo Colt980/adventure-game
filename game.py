@@ -187,33 +187,31 @@ while True:
 
         result, state["map_state"] = mi.run_map_interface(state["map_state"])
 
-        # ----------------------------
-        # HANDLE MAP RESULT
-        # ----------------------------
-
-        if result == "monster_encounter":
-
-            px, py = state["map_state"]["player_pos"]
-
-            for m in state["monsters"]:
-                if (m.x, m.y) == (px, py):
-
-                    print(f"You fight a {m.monster_type}!")
-
-                    state["player_hp"] -= 5
-                    m.hp -= 999
-
-                    if m.hp <= 0:
-                        state["monsters"].remove(m)
-                        print("Monster defeated!")
-
-                    break
+        if result == "combat":
+            print("\nCombat triggered!")
 
         elif result == "returned_to_town":
             print("You returned to town safely.")
 
         elif result == "quit":
             print("Exited map.")
+        
+        # ----------------------------
+        # HANDLE MAP RESULT
+        # ----------------------------
+
+    if result == "combat":
+        print("\nYou encountered a monster!")
+        print("Entering combat...")
+
+    # HERE is where you'd call a combat loop later
+    # for now you can just simulate or pause
+    # or eventually: combat.run(state)
+    elif result == "returned_to_town":
+        print("You returned to town safely.")
+
+    elif result == "quit":
+        print("Exited map.")
 
         # ----------------------------
         # MONSTER MOVEMENT
